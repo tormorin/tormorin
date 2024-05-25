@@ -1,7 +1,0 @@
-<RCC>
-    <qresource prefix="/">
-        <file>res/dock.png</file>
-        <file>res/NEW.jpg</file>
-        <file>res/Edit.png</file>
-    </qresource>
-</RCC>
