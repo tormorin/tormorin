@@ -508,3 +508,5 @@ int accept_new_connection(){
     }
 }
 ```
+### 关于buffer
+任何网络库都有提供buffer的数据结构，所谓buffer就是接收和发送数据时缓存数据的结构。 boost::asio提供了asio::mutable_buffer 和 asio::const_buffer这两个结构，他们是一段连续的空间，首字节存储了后续数据的长度。 asio::mutable_buffer用于写服务，asio::const_buffer用于读服务。但是这两个结构都没有被asio的api直接使用。 对于api的buffer参数，asio提出了MutableBufferSequence和ConstBufferSequence概念，他们是由多个asio::mutable_buffer和asio::const_buffer组成的。也就是说boost::asio为了节省空间，将一部分连续的空间组合起来，作为参数交给api使用。 我们可以理解为MutableBufferSequence的数据结构为std::vector 结构如下
