@@ -51,14 +51,16 @@ You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/co
 7.对指针变量使用"sizeof"得到的是指针变量的大小；对引用变量使用"sizeof"得到的是变量的大小。<br>
 8.理论上指针的级数没有限制;但引用只有一级。即不存在引用的引用，但可以有指针的指针<br>
 9.++引用与++指针的效果不一样
-```<br>int main()<br>
-(<br>
-	int ar[5] = { 1,2,3，4,5 };<br>
-	int* ip = ar; //数组首元素地址<br>
-	int& b = ar[O]; //数组首元素的别名叫b<br>
-	++ip;  //由0下标的地址指向1下标的地址<br>
-	++b；  //由0下标指向1下标<br>
-}<br>```
+```
+int main()
+{
+	int ar[5] = { 1,2,3，4,5 };
+	int* ip = ar; //数组首元素地址
+	int& b = ar[O]; //数组首元素的别名叫b
+	++ip;  //由0下标的地址指向1下标的地址
+	++b；  //由0下标指向1下标
+}
+```
 10.对引用的操作直接反应到所引用的实体（变量或对象）。
 对指针变量的操作，会使指针变量指向下一个实体(变量或对象）的地址;而不是改变所指实体(变量或对象)的内容。<br>
 11.不可以对函数中的局部变量或对象以引用或指针方式返回。
@@ -67,61 +69,71 @@ You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/co
 C++11新标准规定，允许将变量声明为constexpr类型以便由编译器来验证变量的值是否是一个常量表达式。声明为constexpr的变量一定是一个常量，而且必须用常量表达式初始化<br>
 常量表达式的值需要在编译时就得到计算，因此对声明constexpr时用到的类型必须有所限制。因为这些类型一般比较简单，值也显而易见、容易得到，就把它们称为“字面值类型”（literal type）。到目前为止接触过的数据类型中，算术类型、引用和指针都属于字面值类型。 尽管指针和引用都能定义成constexpr，但它们的初始值却受到严格限制。一个constexpr指针的初始值必须是nullptr或者0，或者是存储于某个固定地址中的对象。<br>
 在constexpr声明中如果定义了一个指针，限定符constexpr仅对指针有效，与指针所指的对象无关。<br>
-void pointer_constexpr()<br>
-{<br>
-    // p是一个指向整形常量的指针,p可以修改，但是*P不可修改<br>
-    const int *p = nullptr;<br>
-    // q是一个指向整形变量的常量指针,q不可修改,但是*q可以修改<br>
-    constexpr int *q = nullptr;<br>
-}<br>
+```
+void pointer_constexpr()
+{
+    // p是一个指向整形常量的指针,p可以修改，但是*P不可修改
+    const int *p = nullptr;
+    // q是一个指向整形变量的常量指针,q不可修改,但是*q可以修改
+    constexpr int *q = nullptr;
+}
+```
 p和q的类型相差甚远，p是一个指向常量的指针，而q是一个常量指针，其中的关键在于constexpr把它所定义的对象置为了顶层const。 与其他常量指针类似，constexpr指针既可以指向常量也可以指向一个非常量。
 
 ## 5.26
 ### C++语法基础
 #### 类型别名
 类型别名（type alias）是一个名字，它是某种类型的同义词。使用类型别名有很多好处，它让复杂的类型名字变得简单明了、易于理解和使用，还有助于程序员清楚地知道使用该类型的真实目的。有两种方法可用于定义类型别名。传统的方法是使用关键字typedef<br>
-void typedef_func()<br>
-{<br>
-    // wages是double的同义词<br>
-    typedef double wages;<br>
-    // base是double的同义词， p 是double*的同义词<br>
-    typedef wages base, *p;<br>
-    // C11用法<br>
-    using newd = double;<br>
-    newd dd = 3.14;<br>
-}<br>
+```
+void typedef_func()
+{
+    // wages是double的同义词
+    typedef double wages;
+    // base是double的同义词， p 是double*的同义词
+    typedef wages base, *p;
+    // C11用法
+    using newd = double;
+    newd dd = 3.14;
+}
+```
 新标准规定了一种新的方法，使用别名声明（aliasdeclaration）来定义类型的别名, using newd = double 就是通过using定义newd类型和double是相同的。<br>
 #### auto推导
 C++11新标准引入了auto类型说明符，用它就能让编译器替我们去分析表达式所属的类型。和原来那些只对应一种特定类型的说明符（比如double）不同，auto让编译器通过初始值来推算变量的类型。显然，auto定义的变量必须有初始值. 使用auto也能在一条语句中声明多个变量。因为一条声明语句只能有一个基本数据类型，所以该语句中所有变量的初始基本数据类型都必须一样.<br>
 auto一般会忽略掉顶层const，同时底层const则会保留下来 要在一条语句中定义多个变量，切记，符号&和＊只从属于某个声明符，而非基本数据类型的一部分，因此初始值必须是同一种类型：
-// k是int类型，l是int的引用<br>
-// auto 忽略了顶层const<br>
-auto k = ci, &l = i;<br>
-// m是int常量的引用，p是指向int常量的指针<br>
-// auto保留了底层const<br>
-auto &m = ci, *p = &ci;<br>
-// 错误 i的类型是int， ci的类型是 const int<br>
-// auto &n = i, *p2 = &ci;<br>
+```
+// k是int类型，l是int的引用
+// auto 忽略了顶层const
+auto k = ci, &l = i;
+// m是int常量的引用，p是指向int常量的指针
+// auto保留了底层const
+auto &m = ci, *p = &ci;
+// 错误 i的类型是int， ci的类型是 const int
+// auto &n = i, *p2 = &ci;
+```
 #### decltype类型指示符
 C++11新标准引入了第二种类型说明符decltype，它的作用是选择并返回操作数的数据类型。在此过程中，编译器分析表达式并得到它的类型，却不实际计算表达式的值<br>
-decltype(size()) sum;<br>
+```
+decltype(size()) sum;
+```
 编译器并不实际调用函数size，而是使用当调用发生时size的返回值类型作为sum的类型。换句话说，编译器为sum指定的类型是什么呢？就是假如size被调用的话将会返回的那个类型。decltype处理顶层const和引用的方式与auto有些许不同。如果decltype使用的表达式是一个变量，则decltype返回该变量的类型（包括顶层const和引用在内)<br>
-void decltype_func()<br>
-{<br>
-    decltype(size()) sum;<br>
-    const int ci = 0, &cj = ci;<br>
-    // x的类型是const int<br>
-    decltype(ci) x = 0;<br>
-    // y的类型是 const int& , y绑定到变量x<br>
-    decltype(cj) y = x;<br>
-    //错误，z是一个引用，必须初始化<br>
-    // decltype(cj) z;<br>
-}<br>
-因为cj是一个引用，decltype（cj）的结果就是引用类型，因此作为引用的z必须被初始化。需要指出的是，引用从来都作为其所指对象的同义词出现，只有用在decltype处是一个例外。如果decltype使用的表达式不是一个变量，则decltype返回表达式结果对应的类型.<br>
-int i = 42, *p = &i, &r = i;<br>
-// b1 是一个int类型的引用<br>
-decltype(r) b1 = i;<br>
-// r+0 通过decltype返回int类型<br>
-decltype(r + 0) b2;<br>
-//错误，必须初始化,c是int&类型<br>
-// decltype(*p) c;<br>
+```
+void decltype_func()
+{
+    decltype(size()) sum;
+    const int ci = 0, &cj = ci;
+    // x的类型是const int
+    decltype(ci) x = 0;
+    // y的类型是 const int& , y绑定到变量x
+    decltype(cj) y = x;
+    //错误，z是一个引用，必须初始化
+    // decltype(cj) z;
+}
+因为cj是一个引用，decltype（cj）的结果就是引用类型，因此作为引用的z必须被初始化。需要指出的是，引用从来都作为其所指对象的同义词出现，只有用在decltype处是一个例外。如果decltype使用的表达式不是一个变量，则decltype返回表达式结果对应的类型.
+int i = 42, *p = &i, &r = i;
+// b1 是一个int类型的引用
+decltype(r) b1 = i;
+// r+0 通过decltype返回int类型
+decltype(r + 0) b2;
+//错误，必须初始化,c是int&类型
+// decltype(*p) c;
+```
