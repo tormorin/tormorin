@@ -11,7 +11,7 @@
 You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/count.svg) visitor,Thank You! :kissing_heart: :kissing_heart:
 
 - [日志](#日志)
-  - [5.25](##5.25)
+  - [5.25](#5.25)
 
 # 日志
 ## 5.25 
