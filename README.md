@@ -13,6 +13,7 @@ You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/co
 - [日志](#日志)
   - [5.25](##5.25)
   - [5.26](##5.26)
+  - [5.27](##5.27)
 
 # 日志
 ## 5.25 
@@ -512,3 +513,5 @@ int accept_new_connection(){
 任何网络库都有提供buffer的数据结构，所谓buffer就是接收和发送数据时缓存数据的结构。 boost::asio提供了asio::mutable_buffer 和 asio::const_buffer这两个结构，他们是一段连续的空间，首字节存储了后续数据的长度。 asio::mutable_buffer用于写服务，asio::const_buffer用于读服务。但是这两个结构都没有被asio的api直接使用。 对于api的buffer参数，asio提出了MutableBufferSequence和ConstBufferSequence概念，他们是由多个asio::mutable_buffer和asio::const_buffer组成的。也就是说boost::asio为了节省空间，将一部分连续的空间组合起来，作为参数交给api使用。 我们可以理解为MutableBufferSequence的数据结构为std::vector 结构如下
 ![](https://github.com/tormorin/tormorin/blob/main/网络编程/buffer.jpg)
 每隔vector存储的都是mutable_buffer的地址，每个mutable_buffer的第一个字节表示数据的长度，后面跟着数据内容。 这么复杂的结构交给用户使用并不合适，所以asio提出了buffer()函数，该函数接收多种形式的字节流，该函数返回asio::mutable_buffers_1 o或者asio::const_buffers_1结构的对象。 如果传递给buffer()的参数是一个只读类型，则函数返回asio::const_buffers_1 类型对象。 如果传递给buffer()的参数是一个可写类型，则返回asio::mutable_buffers_1 类型对象。 asio::const_buffers_1和asio::mutable_buffers_1是asio::mutable_buffer和asio::const_buffer的适配器，提供了符合MutableBufferSequence和ConstBufferSequence概念的接口，所以他们可以作为boost::asio的api函数的参数使用。 简单概括一下，我们可以用buffer()函数生成我们要用的缓存存储数据。 比如boost的发送接口send要求的参数为ConstBufferSequence类型
+# 5.27
+
