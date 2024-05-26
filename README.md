@@ -168,6 +168,41 @@ for (auto c : str)
     cout << c << endl;
 }
 ```
+统计字符串中标点符号的数量
+```
+string s("Hello World!!!");
+decltype(s.size()) punct_cnt = 0;
+//统计s中标点符号的数量
+for (auto c : s)
+{
+    if (ispunct(c))
+        punct_cnt++;
+}
+cout << punct_cnt
+     << " punctuation characters in "
+    << s << endl;
+```
+将字符串变为大写
+```
+//将字符串变为大写
+string s3("Hello Vivo");
+for (auto &c : s3)
+{
+    //通过引用string中的字符，然后修改字符
+    c = toupper(c);
+}
+cout << s << endl;
+```
+将第一个单词变为大写
+```
+//通过下标索引修改字符串
+//把第一个单词变为大写
+string sind("some string");
+for (decltype(sind.size()) index = 0; index != sind.size() && isspace(sind[index]); ++index)
+{
+    sind[index] = toupper(sind[index]);
+}
+```
 ### 网络编程
 #### 网络编程基本流程
 网络编程的基本流程对于服务端是这样的 服务端 <br>
