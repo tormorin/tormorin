@@ -139,6 +139,35 @@ decltype(r + 0) b2;
 //错误，必须初始化,c是int&类型
 // decltype(*p) c;
 ```
+统计字符串中标点符号的数量
+```
+string s("Hello World!!!");
+decltype(s.size()) punct_cnt = 0;//punct_cnt为size()的返回类型
+//统计s中标点符号的数量
+for (auto c : s)
+{
+    if (ispunct(c))
+        punct_cnt++;
+}
+cout << punct_cnt
+     << " punctuation characters in "
+    << s << endl;
+```
+#### string的C11用法
+如果想对string对象中的每个字符做点儿什么操作，目前最好的办法是使用C++11新标准提供的一种语句：范围for（rangefor）语句。这种语句遍历给定序列中的每个元素并对序列中的每个值执行某种操作，其语法形式是：
+```
+for(declaration:expression)
+    statement
+```
+其中，expression部分是一个对象，用于表示一个序列。declaration部分负责定义一个变量，该变量将被用于访问序列中的基础元素。每次迭代，declaration部分的变量会被初始化为expression部分的下一个元素值。一个string对象表示一个字符的序列，因此string对象可以作为范围for语句中的expression部分。举一个简单的例子，我们可以使用范围for语句把string对象中的字符每行一个输出出来：
+```
+string str("hello zack");
+    //遍历输出str中的每个字符
+for (auto c : str)
+{
+    cout << c << endl;
+}
+```
 ### 网络编程
 #### 网络编程基本流程
 网络编程的基本流程对于服务端是这样的 服务端 <br>
