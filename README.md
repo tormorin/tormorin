@@ -158,3 +158,289 @@ decltype(r + 0) b2;
 
 3）write、read----建立连接后，就可发收消息了。 图示如下<br>
 ![](https://github.com/tormorin/tormorin/blob/main/网络编程/1.jpg)
+#### 客户端和服务器连接的流程
+##### 1.终端节点的创建
+所谓终端节点就是用来通信的端对端的节点，可以通过ip地址和端口构造，其的节点可以连接这个终端节点做通信. 如果我们是客户端，我们可以通过对端的ip和端口构造一个endpoint，用这个endpoint和其通信。
+```
+int  client_end_point() {
+    // Step 1. 假设客户端应用已准备
+    // 获取ip地址和端口号
+    std::string raw_ip_address = "127.0.0.1";
+    unsigned short port_num = 3333;
+
+    // 用于存储有关发生的错误的信息
+    // 同时解析原始IP地址。
+    boost::system::error_code ec;//错误码
+    // Step 2. 这个函数会尝试将提供的字符串解析为IP地址
+    //如果解析成功，ec 的值将被设置为 asio::error_code()（即没有错误），否则 ec 将包含错误信息。
+    asio::ip::address ip_address =
+        asio::ip::address::from_string(raw_ip_address, ec);
+
+    if (ec.value() != 0) {
+        // Provided IP address is invalid. Breaking execution.
+        std::cout
+            << "Failed to parse the IP address. Error code = "
+            << ec.value() << ". Message: " << ec.message();
+        return ec.value();
+    }
+
+    // Step 3.创建了一个TCP端点 ep，它将这个IP地址和端口号结合起来，用于之后的网络操作，比如绑定、连接等。
+    asio::ip::tcp::endpoint ep(ip_address, port_num);
+
+    // Step 4. The endpoint is ready and can be used to specify a 
+    // particular server in the network the client wants to 
+    // communicate with.
+
+    return 0;
+}
+```
+如果是服务端，则只需根据本地地址绑定就可以生成endpoint
+```
+int  server_end_point(){
+    // Step 1. Here we assume that the server application has
+    //already obtained the protocol port number.
+    unsigned short port_num = 3333;
+
+    // Step 2. Create special object of asio::ip::address class
+    // that specifies all IP-addresses available on the host. Note
+    // that here we assume that server works over IPv6 protocol.
+    asio::ip::address ip_address = asio::ip::address_v6::any();
+
+    // Step 3.一个静态方法，用于生成一个IPv6地址
+    //该地址指向所有IPv6接口。这通常用于服务器端套接字编程中，允许服务器监听所有可用的IPv6地址上的入站连接。
+    asio::ip::tcp::endpoint ep(ip_address, port_num);
+
+    // Step 4. The endpoint is created and can be used to 
+    // specify the IP addresses and a port number on which 
+    // the server application wants to listen for incoming 
+    // connections.
+
+    return 0;
+}
+```
+##### 2.创建socket
+创建socket分为4步，创建上下文iocontext，选择协议，生成socket，打开socket。
+```
+int create_tcp_socket() {
+    // Step 1. An instance of 'io_service' class is required by
+            // socket constructor.
+//asio::io_context 是用于处理异步输入输出操作的核心服务组件。它提供了一个调度平台，允许程序执行任何异步操作，如Socket通信、定时器等待和文件读写等。
+//asio::io_context 对象通常是网络应用中常用到的对象之一，因为它负责管理和处理所有的异步操作。你可以将它视为一个背后的工作线程，负责协调所有的IO操作。
+    asio::io_context  ios;
+
+    // Step 2. Creating an object of 'tcp' class representing
+    // a TCP protocol with IPv4 as underlying protocol.
+//使用 asio::ip::tcp::v4() 函数可以创建一个代表 IPv4 TCP 协议的对象。这通常用于配置套接字或端点（endpoint），使其使用 IPv4 地址。
+//asio::ip::tcp 是一个封装了 TCP 协议相关功能的命名空间，而 asio::ip::tcp::v4() 是一个静态成员函数，它返回一个 asio::ip::tcp 类型的对象，这个对象专门用于IPv4通信。
+    asio::ip::tcp protocol = asio::ip::tcp::v4();
+
+    // Step 3. Instantiating an active TCP socket object.
+//表示使用 I/O 上下文 ios 初始化了一个 TCP 套接字 sock。这个套接字可以用于执行网络操作，如连接、发送和接收数据。
+    asio::ip::tcp::socket sock(ios);
+
+    // Used to store information about error that happens
+    // while opening the socket.
+//错误码
+    boost::system::error_code ec;
+
+    // Step 4. Opening the socket.
+//sock.open(protocol, ec); 是用来打开一个套接字并指定其使用的协议的方法。protocol 是一个协议对象（如 TCP 或 UDP），ec 是一个 asio::error_code 对象，用来捕捉操作中出现的任何错误。
+//参数 protocol 定义了套接字使用的协议类型，例如 asio::ip::tcp::v4() 或 asio::ip::tcp::v6()，分别表示使用 IPv4 或 IPv6 的 TCP 协议。
+//如果 sock.open() 调用成功，则 ec 被置为零；如果有错误发生，则 ec 会被设置为相应的错误代码，可以用来进行错误处理。
+    sock.open(protocol, ec);
+
+    if (ec.value() != 0) {
+        // Failed to open the socket.
+        std::cout
+            << "Failed to open the socket! Error code = "
+            << ec.value() << ". Message: " << ec.message();
+        return ec.value();
+    }
+
+    return 0;
+}
+```
+上述socket只是通信的socket，如果是服务端，我们还需要生成一个acceptor的socket，用来接收新的连接。
+```
+int  create_acceptor_socket() {
+    // Step 1. An instance of 'io_service' class is required by
+        // socket constructor.
+//上下文
+    asio::io_context ios;
+
+    // Step 2. Creating an object of 'tcp' class representing
+            // a TCP protocol with IPv6 as underlying protocol.
+//ip_v6协议
+    asio::ip::tcp protocol = asio::ip::tcp::v6();
+
+    // Step 3. Instantiating an acceptor socket object.
+//asio::ip::tcp::acceptor 对象是用于监听和接受传入的 TCP 连接请求的。通过在指定的端口上监听，acceptor 可以接受来自客户端的连接请求并创建新的套接字用于进一步的数据交换。
+    asio::ip::tcp::acceptor acceptor(ios);
+
+    // Used to store information about error that happens
+    // while opening the acceptor socket.
+//错误码
+    boost::system::error_code ec;
+
+    // Step 4. Opening the acceptor socket.
+//打开acceptor,是用来打开一个acceptor对象并指定其使用的协议的方法
+//打开失败ec置为0，调用成功，acceptor对象将根据指定的协议准备好接受连接
+    acceptor.open(protocol, ec);
+
+    if (ec.value() != 0) {
+        // Failed to open the socket.
+        std::cout
+            << "Failed to open the acceptor socket!"
+            << "Error code = "
+            << ec.value() << ". Message: " << ec.message();
+        return ec.value();
+    }
+
+    return 0;
+}
+```
+##### 绑定acceptor
+对于acceptor类型的socket，服务器要将其绑定到指定的断点,所有连接这个端点的连接都可以被接收到。
+```
+int  bind_acceptor_socket() {
+
+    // Step 1. Here we assume that the server application has
+        // already obtained the protocol port number.
+//端口号
+    unsigned short port_num = 3333;
+
+    // Step 2. Creating an endpoint.
+//创建端点
+    asio::ip::tcp::endpoint ep(asio::ip::address_v4::any(),
+        port_num);
+
+    // Used by 'acceptor' class constructor.
+//上下文
+    asio::io_context  ios;
+
+    // Step 3. Creating and opening an acceptor socket.
+//创建acceptor
+    asio::ip::tcp::acceptor acceptor(ios, ep.protocol());
+//错误码
+    boost::system::error_code ec;
+
+    // Step 4. Binding the acceptor socket.
+//acceptor.bind(ep, ec); 方法用于将 asio::ip::tcp::acceptor 对象绑定到特定的网络端点 (ep)。
+//这是建立服务器和开始监听前的必要步骤之一。ec 参数是一个 asio::error_code 对象，用于捕获操作中可能发生的任何错误。
+    acceptor.bind(ep, ec);
+
+    // Handling errors if any.
+    if (ec.value() != 0) {
+        // Failed to bind the acceptor socket. Breaking
+        // execution.
+        std::cout << "Failed to bind the acceptor socket."
+            << "Error code = " << ec.value() << ". Message: "
+            << ec.message();
+
+        return ec.value();
+    }
+
+    return 0;
+}
+```
+##### 连接指定的端点
+作为客户端可以连接服务器指定的端点进行连接
+```
+int  connect_to_end() {
+    // Step 1. Assume that the client application has already
+            // obtained the IP address and protocol port number of the
+            // target server.
+//ip地址和端口号
+    std::string raw_ip_address = "127.0.0.1";
+    unsigned short port_num = 3333;
+
+    try {
+        // Step 2. Creating an endpoint designating 
+        // a target server application.
+//创建一个端点
+        asio::ip::tcp::endpoint
+            ep(asio::ip::address::from_string(raw_ip_address),
+                port_num);
+//上下文
+        asio::io_context ios;
+
+        // Step 3. Creating and opening a socket.
+//套接字
+        asio::ip::tcp::socket sock(ios, ep.protocol());
+//在套接字对象 sock 上调用 connect 方法，尝试连接到指定的端点 ep，以建立与目标服务器的网络连接
+        // Step 4. Connecting a socket.
+        sock.connect(ep);
+
+        // At this point socket 'sock' is connected to 
+        // the server application and can be used
+        // to send data to or receive data from it.
+    }
+    // Overloads of asio::ip::address::from_string() and 
+    // asio::ip::tcp::socket::connect() used here throw
+    // exceptions in case of error condition.
+//使用 try 块来包围可能会引发异常的代码块，然后在 catch 块中处理异常。
+//在这里，catch (system::system_error& e) 捕获了类型为 system::system_error 的异常，并通过引用 e 来访问异常对象。在异常处理块内部进行了以下操作：
+    catch (system::system_error& e) {
+        std::cout << "Error occured! Error code = " << e.code()
+            << ". Message: " << e.what();
+
+        return e.code().value();
+    }
+}
+```
+##### 服务器接收连接
+当有客户端连接时，服务器需要接收连接
+```
+int accept_new_connection(){
+    // The size of the queue containing the pending connection
+            // requests.
+//监听队列长度
+    const int BACKLOG_SIZE = 30;
+
+    // Step 1. Here we assume that the server application has
+    // already obtained the protocol port number.
+//端口号
+    unsigned short port_num = 3333;
+
+    // Step 2. Creating a server endpoint.
+//创建端点
+    asio::ip::tcp::endpoint ep(asio::ip::address_v4::any(),
+        port_num);
+//上下文
+    asio::io_context  ios;
+
+    try {
+        // Step 3. Instantiating and opening an acceptor socket.
+//创建acceptor,用于监听特定端口并接受客户端的连接请求。
+        asio::ip::tcp::acceptor acceptor(ios, ep.protocol());
+
+        // Step 4. Binding the acceptor socket to the 
+        // server endpint.
+//于将 acceptor 对象绑定到特定的 IP 地址和端口。通过将 acceptor 绑定到特定的 IP 地址和端口，服务器可以开始监听来自该 IP 地址和端口的连接请求。
+        acceptor.bind(ep);
+
+        // Step 5. Starting to listen for incoming connection
+        // requests.
+//通过调用 acceptor.listen(BACKLOG_SIZE) 方法，可以设定服务器接受连接的队列大小，即表示服务器可以排队等待处理的连接请求的最大数量。
+        acceptor.listen(BACKLOG_SIZE);
+
+        // Step 6. Creating an active socket.
+        asio::ip::tcp::socket sock(ios);
+
+        // Step 7. Processing the next connection request and 
+        // connecting the active socket to the client.
+//通过这行代码，一个 TCP 套接字对象被实例化并赋值给变量 sock，以便后续在程序中使用该套接字对象进行网络通信操作。
+        acceptor.accept(sock);
+
+        // At this point 'sock' socket is connected to 
+        //the client application and can be used to send data to
+        // or receive data from it.
+    }
+    catch (system::system_error& e) {
+        std::cout << "Error occured! Error code = " << e.code()
+            << ". Message: " << e.what();
+
+        return e.code().value();
+    }
+}
+```
