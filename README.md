@@ -61,3 +61,12 @@ You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/co
 ###### constexpr用法
 C++11新标准规定，允许将变量声明为constexpr类型以便由编译器来验证变量的值是否是一个常量表达式。声明为constexpr的变量一定是一个常量，而且必须用常量表达式初始化<br>
 常量表达式的值需要在编译时就得到计算，因此对声明constexpr时用到的类型必须有所限制。因为这些类型一般比较简单，值也显而易见、容易得到，就把它们称为“字面值类型”（literal type）。到目前为止接触过的数据类型中，算术类型、引用和指针都属于字面值类型。 尽管指针和引用都能定义成constexpr，但它们的初始值却受到严格限制。一个constexpr指针的初始值必须是nullptr或者0，或者是存储于某个固定地址中的对象。<br>
+在constexpr声明中如果定义了一个指针，限定符constexpr仅对指针有效，与指针所指的对象无关。<br>
+void pointer_constexpr()<br>
+{<br>
+    // p是一个指向整形常量的指针,p可以修改，但是*P不可修改<br>
+    const int *p = nullptr;<br>
+    // q是一个指向整形变量的常量指针,q不可修改,但是*q可以修改<br>
+    constexpr int *q = nullptr;<br>
+}<br>
+p和q的类型相差甚远，p是一个指向常量的指针，而q是一个常量指针，其中的关键在于constexpr把它所定义的对象置为了顶层const。 与其他常量指针类似，constexpr指针既可以指向常量也可以指向一个非常量：
