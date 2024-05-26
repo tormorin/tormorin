@@ -156,4 +156,5 @@ decltype(r + 0) b2;
 
 2）connect----根据服务端ip+port，发起连接请求。<br>
 
-3）write、read----建立连接后，就可发收消息了。 图示如下
+3）write、read----建立连接后，就可发收消息了。 图示如下<br>
+![](https://cdn.llfc.club/1540562-20190417002428451-62583604.jpg)
