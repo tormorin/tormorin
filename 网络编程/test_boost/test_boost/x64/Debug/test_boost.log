@@ -1,0 +1,3 @@
+﻿  源.cpp
+C:\Users\lenovo\Desktop\c++\网络编程\test_boost\源.cpp(14,18): warning C4244: “=”: 从“double”转换到“float”，可能丢失数据
+  test_boost.vcxproj -> C:\Users\lenovo\Desktop\c++\网络编程\test_boost\x64\Debug\test_boost.exe
