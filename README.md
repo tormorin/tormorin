@@ -12,6 +12,7 @@ You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/co
 
 - [日志](#日志)
   - [5.25](#5.25)
+  - [5.26](#5.26)
 
 # 日志
 ## 5.25 
@@ -72,4 +73,6 @@ void pointer_constexpr()<br>
     // q是一个指向整形变量的常量指针,q不可修改,但是*q可以修改<br>
     constexpr int *q = nullptr;<br>
 }<br>
-p和q的类型相差甚远，p是一个指向常量的指针，而q是一个常量指针，其中的关键在于constexpr把它所定义的对象置为了顶层const。 与其他常量指针类似，constexpr指针既可以指向常量也可以指向一个非常量：
+p和q的类型相差甚远，p是一个指向常量的指针，而q是一个常量指针，其中的关键在于constexpr把它所定义的对象置为了顶层const。 与其他常量指针类似，constexpr指针既可以指向常量也可以指向一个非常量。
+
+##5.26
