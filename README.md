@@ -328,26 +328,26 @@ int create_tcp_socket() {
     return 0;
 }
 ```
-上述socket只是通信的socket，如果是服务端，我们还需要生成一个acceptor的socket，用来接收新的连接。
+上述socket只是通信的socket，如果是服务端，我们还需要生成一个acceptor的socket，用来接收新的连接。acceptor与socket创建步骤一样.
 ```
 int  create_acceptor_socket() {
     // Step 1. An instance of 'io_service' class is required by
         // socket constructor.
-//上下文
+//1.上下文
     asio::io_context ios;
 
     // Step 2. Creating an object of 'tcp' class representing
             // a TCP protocol with IPv6 as underlying protocol.
-//ip_v6协议
+//2.ip_v6协议
     asio::ip::tcp protocol = asio::ip::tcp::v6();
 
     // Step 3. Instantiating an acceptor socket object.
-//asio::ip::tcp::acceptor 对象是用于监听和接受传入的 TCP 连接请求的。通过在指定的端口上监听，acceptor 可以接受来自客户端的连接请求并创建新的套接字用于进一步的数据交换。
+//4.asio::ip::tcp::acceptor 对象是用于监听和接受传入的 TCP 连接请求的。通过在指定的端口上监听，acceptor 可以接受来自客户端的连接请求并创建新的套接字用于进一步的数据交换。
     asio::ip::tcp::acceptor acceptor(ios);
 
     // Used to store information about error that happens
     // while opening the acceptor socket.
-//错误码
+//5.错误码
     boost::system::error_code ec;
 
     // Step 4. Opening the acceptor socket.
@@ -369,27 +369,28 @@ int  create_acceptor_socket() {
 ```
 ##### 绑定acceptor
 对于acceptor类型的socket，服务器要将其绑定到指定的断点,所有连接这个端点的连接都可以被接收到。
+绑定acceptor的步骤:1.首先要有端口号；2.创建端点，用于接收ip地址；3.创建上下文；4.创建acceptor；5.绑定acceptor,绑定ep，通过ec来报错
 ```
 int  bind_acceptor_socket() {
 
     // Step 1. Here we assume that the server application has
         // already obtained the protocol port number.
-//端口号
+//1.端口号
     unsigned short port_num = 3333;
 
     // Step 2. Creating an endpoint.
-//创建端点
+//2.创建端点
     asio::ip::tcp::endpoint ep(asio::ip::address_v4::any(),
         port_num);
 
     // Used by 'acceptor' class constructor.
-//上下文
+//3.上下文
     asio::io_context  ios;
 
     // Step 3. Creating and opening an acceptor socket.
-//创建acceptor
+//4.创建acceptor
     asio::ip::tcp::acceptor acceptor(ios, ep.protocol());
-//错误码
+//5.错误码
     boost::system::error_code ec;
 
     // Step 4. Binding the acceptor socket.
@@ -413,6 +414,7 @@ int  bind_acceptor_socket() {
 ```
 ##### 连接指定的端点
 作为客户端可以连接服务器指定的端点进行连接
+客户端连接端点的流程:1.首先要有对端的端口号；2.创建端点，上下文，套接字对象，套接字对象要给上下文和端点的服务信息；3.在套接字对象上调用connnect方法，连接端点ep，建立连接
 ```
 int  connect_to_end() {
     // Step 1. Assume that the client application has already
@@ -458,6 +460,7 @@ int  connect_to_end() {
 ```
 ##### 服务器接收连接
 当有客户端连接时，服务器需要接收连接
+流程：1.创建监听队列的长度，端口号，端点，上下文；2.创建acceptor来监听客户端请求，要给acceptor上下文信息和端点的服务信息；3.acceptor绑定ep端点。4.调用acceptord的listen函数监听客户端的请求，给到的参数为监听队列长度，即排队等待处理的连接请求的最大数量。5.创建一个套接字对象，并调用acceptor的accept函数来
 ```
 int accept_new_connection(){
     // The size of the queue containing the pending connection
@@ -493,11 +496,11 @@ int accept_new_connection(){
         acceptor.listen(BACKLOG_SIZE);
 
         // Step 6. Creating an active socket.
+//通过这行代码，一个 TCP 套接字对象被实例化并赋值给变量 sock，以便后续在程序中使用该套接字对象进行网络通信操作
         asio::ip::tcp::socket sock(ios);
-
         // Step 7. Processing the next connection request and 
         // connecting the active socket to the client.
-//通过这行代码，一个 TCP 套接字对象被实例化并赋值给变量 sock，以便后续在程序中使用该套接字对象进行网络通信操作。
+。//使用 acceptor.accept(sock); 方法是用来接受来自客户端的连接请求，并且将连接的客户端套接字与提供的 sock 套接字对象关联。
         acceptor.accept(sock);
 
         // At this point 'sock' socket is connected to 
