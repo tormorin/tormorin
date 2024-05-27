@@ -225,7 +225,8 @@ for (decltype(sind.size()) index = 0; index != sind.size() && isspace(sind[index
 ![](https://github.com/tormorin/tormorin/blob/main/网络编程/1.jpg)
 #### 客户端和服务器连接的流程
 ##### 1.终端节点的创建
-所谓终端节点就是用来通信的端对端的节点，可以通过ip地址和端口构造，其的节点可以连接这个终端节点做通信. 如果我们是客户端，我们可以通过对端的ip和端口构造一个endpoint，用这个endpoint和其通信。
+所谓终端节点就是用来通信的端对端的节点，可以通过ip地址和端口构造，其的节点可以连接这个终端节点做通信. 如果我们是客户端，我们可以通过对端的ip和端口构造一个endpoint，用这个endpoint和其通信。<br>
+客户端创建端点的流程：1.首先需要对端的端口号和ip地址；2.通过from_string解析ip地址；3.检查错误；4.创建ep端点，将IP地址和端口号结合
 ```
 int  client_end_point() {
     // Step 1. 假设客户端应用已准备
@@ -260,6 +261,7 @@ int  client_end_point() {
 }
 ```
 如果是服务端，则只需根据本地地址绑定就可以生成endpoint
+服务器创建端点的流程：1.获取端口号，2.创建ip地址，意味着服务器可以接收的ip地址，3.创建端点
 ```
 int  server_end_point(){
     // Step 1. Here we assume that the server application has
@@ -269,10 +271,11 @@ int  server_end_point(){
     // Step 2. Create special object of asio::ip::address class
     // that specifies all IP-addresses available on the host. Note
     // that here we assume that server works over IPv6 protocol.
+ //该地址指向所有IPv6接口。这通常用于服务器端套接字编程中，允许服务器监听所有可用的IPv6地址上的入站连接。
     asio::ip::address ip_address = asio::ip::address_v6::any();
 
     // Step 3.一个静态方法，用于生成一个IPv6地址
-    //该地址指向所有IPv6接口。这通常用于服务器端套接字编程中，允许服务器监听所有可用的IPv6地址上的入站连接。
+   
     asio::ip::tcp::endpoint ep(ip_address, port_num);
 
     // Step 4. The endpoint is created and can be used to 
