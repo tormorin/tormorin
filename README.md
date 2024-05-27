@@ -610,3 +610,20 @@ while (cin >> grade)
 ```
 ## 网络编程
 ### 同步读写端口
+#### 同步写write_some
+boost::asio提供了几种同步写的api，write_some可以每次向指定的空间写入固定的字节数，如果写缓冲区满了，就只写一部分，返回写入的字节数。
+```
+void write_to_socket(asio::ip::tcp::socket& sock)//通过socket进行写操作
+{
+	std::string buf = "Hello World";
+	std::size_t  total_bytes_written = 0;//无符号整数，用来记录已经写入的字节数
+	//循环发送
+	//write_som 返回每次写入的字节数
+	while (total_bytes_written != buf.length())
+	{
+		//buf.c_str()+total_bytes_written为第一个参数：内存首地址
+		//buf.length()-total_bytes_written为第二个参数：还没有发送的长度
+		total_bytes_written += sock.write_some(asio::buffer(buf.c_str() + total_bytes_written, buf.length() - total_bytes_written));
+	}
+}
+```
