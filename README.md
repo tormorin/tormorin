@@ -514,4 +514,62 @@ int accept_new_connection(){
 ![](https://github.com/tormorin/tormorin/blob/main/网络编程/buffer.jpg)
 每隔vector存储的都是mutable_buffer的地址，每个mutable_buffer的第一个字节表示数据的长度，后面跟着数据内容。 这么复杂的结构交给用户使用并不合适，所以asio提出了buffer()函数，该函数接收多种形式的字节流，该函数返回asio::mutable_buffers_1 o或者asio::const_buffers_1结构的对象。 如果传递给buffer()的参数是一个只读类型，则函数返回asio::const_buffers_1 类型对象。 如果传递给buffer()的参数是一个可写类型，则返回asio::mutable_buffers_1 类型对象。 asio::const_buffers_1和asio::mutable_buffers_1是asio::mutable_buffer和asio::const_buffer的适配器，提供了符合MutableBufferSequence和ConstBufferSequence概念的接口，所以他们可以作为boost::asio的api函数的参数使用。 简单概括一下，我们可以用buffer()函数生成我们要用的缓存存储数据。 比如boost的发送接口send要求的参数为ConstBufferSequence类型
 # 5.27
-
+## C++基础
+### vector类
+#### 初始化
+用花括号进行列表初始化 2 可以用()指定初始值和个数初始化
+```
+void vector_init()
+{
+    //列表初始化
+    vector<string> v1{"a", "b", "c"};//花括号初始化
+    //错误用法  不能用括号
+    // vector<string> v2("a", "b", "c");
+    //初始化vector大小为10，每个元素为-1
+    vector<int> ivec(10, -1);
+    // 10个string类型的元素,每个都是hi
+    vector<string> svec(10, "hi!");
+    // 10个元素，每个都初始化为0
+    vector<int> ivec2(10);
+    // 10个元素，每个都初始化为空string
+    vector<string> svec2(10);
+}
+```
+#### 添加元素
+```
+//利用push_back将元素添加到vector末尾
+vector<int> v2;
+for (int i = 0; i != 100; ++i)
+{
+    v2.push_back(i);
+}
+```
+#### 遍历访问
+```
+ // 求vector 每个元素平方值
+vector<int> v3{1, 2, 3, 4, 5, 6, 7, 8, 9};
+for (auto &i : v3)
+{
+    i *= i;
+}
+for (auto i : v3)
+{
+    cout << i << " ";
+}
+cout << endl;
+```
+#### 下标访问
+```
+//索引访问
+// 11个分数段，全部初始化为0
+vector<unsigned> scores(11, 0);
+unsigned grade;
+//读取成绩
+while (cin >> grade)
+{
+    //只处理有效成绩，小于等于100的成绩
+    if (grade <= 100)
+    //对应的分数段+1，修改索引对应的元素值
+        ++scores[grade / 10];
+}
+```
