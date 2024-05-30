@@ -683,7 +683,109 @@ while (cin >> grade)
  }
 ```
 #### 同步读写的服务器建立
+1.创建一个session函数，该函数用来处理客户端的连接请求，一次连接调用一次
+2.在session函数里首先要创建一个data数组用来接收客户端的socket发来的消息，创建之后要进行清空操作
+3.创建错误码用来处理报错
+4.用读函数来读取客户端传来的socket并将读到的数据给到buffer，存入data数组里
+5.判断对端是否关闭，如果关闭，打印错误信息
+6.判断是否有错，如果出现错误，可能是系统级的错误
+7.打印服务器的地址和端口--这步操作主要是用来在控制台显示服务器的地址和端口，便于客户端来发送
+8.打印data里的信息，即客户端发送过来的信息
+9.回传数据--调用写函数，将data里的值写给socket，注意此处的socket要用指针，因为调用函数时，函数的形参本质是复制实参，并未对实参进行操作，而指针形参会将指向的地址的数据改写，达到了修改实参的作用，读函数之所以不需要用指针，则是因为读操作不需要改变socket值，如果socket传来的数据很长，此时形参复制实参效率就会很低下，推荐使用常引用来实现对实参的直接访问且不用担心实参的值被修改。
+10.创建server函数用来监听对客户端的连接
+11.在server函数中创建acceptor来监听客户端连接，给到acceptor的参数有上下文和端点信息，端点通过tcp::v4()来获取本地地址，port为端口号
+12.创建一个新的socket对象，该对象用智能指针的方式管理，避免了内存泄漏，二次析构的风险
+13.调用accept函数来接收客户端发来的socket对象，并将客户端socket复制给新创建的socket，使用指针的目的是为了能改变新创建的socket的值
+14.使用 std::make_shared 创建一个代表新线程的智能指针 t，并将其指向 session 函数，传递 socket 参数，即创建一个线程用来管理session
+15.将新创建的线程指针插入到 thread_set 容器中，用于管理各线程对象。
+16.主函数里要调用server须先创建一个ioc对象，给到server用于socket初始化，并将端口给到endpoint
+17.主函数里处理线程用到了jion函数，此函数为等待线程结束，先将线程集合进行遍历，将遍历到的线程依次调用jion，保证子线程全部执行结束；
+```
+#include <iostream>
+#include<boost/asio.hpp>
+#include<set>
+#include<memory>//智能指针
+using namespace std;
+using boost::asio::ip::tcp;
+const int MAX_LENGTH = 1024;
 
+//创建一个智能指针类型socket_ptr,此智能指针用于管理socket对象
+typedef std::shared_ptr<tcp::socket>socket_ptr;//智能指针类型
+
+// 这行代码声明了一个集合（set），其中存储的是指向 std::thread 对象的智能指针 std::shared_ptr
+// 这样的数据结构通常用于管理多线程应用中的线程对象，同时通过智能指针自动处理线程对象的生命周期
+std::set<std::shared_ptr<std::thread>>thread_set;
+
+//创建session函数，该函数为服务器处理客户端请求，每当我们获取客户端连接后就调用该函数
+void session(socket_ptr sock) {//参数为sock意味着客户端传过来一个socket对象
+    try{
+        for (;;) {
+            //创建一个data数组，最大长度为1024
+            char data[MAX_LENGTH];
+            //把data数组里的数据清空成0
+            memset(data, '\0', MAX_LENGTH);
+            //创建一个错误码
+            boost::system::error_code error;
+            //读取sock的数据，并将此数据存入buffer内并给到data数组
+            size_t length = sock->read_some(boost::asio::buffer(data, MAX_LENGTH), error);
+            //如果对端关闭，发送错误信息
+            if (error == boost::asio::error::eof) {//eof表示对端关闭
+                std::cout << "connection closed by peer" << endl;
+                break;
+            }
+            //发生错误，说明出现系统级的错误
+            else if (error) {
+                throw boost::system::system_error(error);
+            }
+            //打印服务器的地址和端口
+            cout << "receive form " << sock->remote_endpoint().address().to_string() << endl;
+            //打印收到的消息
+            cout << "receive message is" << data << endl;
+            //回传
+            //使用*sock的目的是为了修改sock的内容，如果是sock就不会修改sock；
+            //write函数将buffer内的数据传给*sock指向的地址，即修改了sock的数据
+            boost::asio::write(*sock, boost::asio::buffer(data, length));
+        }
+    }
+    catch (std::exception& e) {
+        std::cerr << "Exception in thread:" << e.what() << "\n" << std::endl;
+    }
+}
+void server(boost::asio::io_context &io_context,unsigned short port) {
+    //创建一个acceptor,需要给到上下文和端点,端点中要有地址和端口号
+    //通过创建tcp::acceptor对象，你可以在指定的端口上监听传入的连接，并接受这些连接。
+    // 在实际应用中，通常会在这个接受连接的过程中创建新的套接字对象来处理通信。
+    tcp::acceptor a(io_context,tcp::endpoint(tcp::v4(), port));
+    for (;;) {
+        //使用智能指针创建一个socket对象
+        socket_ptr socket(new tcp::socket(io_context));
+        //在这行代码中，a.accept(*socket);将会阻塞程序直到有一个新的连接被接受。
+        // 一旦有连接被接受，它将会将该连接的套接字（socket）赋值给*socket，从而可以通过socket对象进行通信。
+        //就是将客户端传来的socket赋值给新创建的socket
+        a.accept(*socket);
+        //std::thread(session, socket): 创建一个新的线程，其中session是线程函数，socket是传递给线程函数的参数。
+        auto t = std::make_shared<std::thread>(session, socket);
+        //thread_set 是一个容器，用于存储线程的智能指针，以便对线程进行管理和跟踪
+        thread_set.insert(t);//将线程放入集合里，防止被回收
+    }
+}
+int main()
+{
+    try {
+        boost::asio::io_context ioc;
+        server(ioc, 10086);
+        for (auto& t : thread_set)
+        {
+            //调用 join 方法可以等待线程执行完成，确保主线程在子线程完成后再继续执行其他操作。
+            t->join();//子线程全退出后，子线程才会全退出
+        }
+    }
+    catch (std::exception& e) {
+
+    }
+    return 0;
+}
+```
 ## C++基础
 ### shard_ptr智能指针
 智能指针和普通指针用法相似，智能指针的本质是一个模板类，对普通指针进行了封装，通过在构造函数中初始化分配内存，在析构函数中释放内存，达到自己管理内存，不需要手动管理内存的效果，避免了忘记释放内存而导致的内存泄露。
