@@ -937,7 +937,7 @@ int main()
 当IO操作完成后，程序会得到通知，然后可以处理已完成的IO操作。<br>
 #### 模拟伪闭包实现连接
 ##### 提前需要了解的知识
-##### enable_shared_from_this:<br>
+##### enable_shared_from_this:
 当使用std::shared_ptr管理一个对象时，可能会遇到一种情况：希望在对象的某些成员函数中能够安全地获取指向自身的std::shared_ptr，这样可以确保在对象处于活动状态时保持共享所有权，避免对象被提前释放而导致悬空指针问题。
 在一个类中继承 std::enable_shared_from_this，通过调用 shared_from_this() 成员函数可以获得一个指向自身的 std::shared_ptr，而不是通过普通的 this 指针来获取智能指针。
 具体来说，这个功能主要用于在对象内部获取与外部共享 std::shared_ptr 内部的智能指针，确保能够正确管理对象的生命周期，避免悬空指针问题。在这种情况下，任何持有该对象的 shared_ptr 都会增加对象中 shared_ptr 的引用计数，直到所有持有者均释放其 shared_ptr。<br>
@@ -954,12 +954,102 @@ UUID（Universally Unique Identifier，通用唯一识别码）是一种用于�
 在数据库中作为主键或唯一标识符，确保数据在分布式系统中的唯一性。<br>
 在网络通信中用作会话标识符或消息标识符，辅助实现分布式系统中的唯一认证或消息跟踪。<br>
 在软件开发中用于生成临时文件名、临时变量名或其他需要唯一标识的场景。<br>
-1.通过智能指针管理session类:
-(1)Session类继承自模板类std::enable_shared_from_this,std::enable_shared_from_this的作用是允许一个对象（通常是一个使用std::shared_ptr管理的对象）创建一个指向自身的std::shared_ptr，以防止出现悬空指针问题。
+uuid在Session中的具体作用：<br>
+每次创建一个新的 Session 对象时，会生成一个新的随机 UUID，并将其存储在 _uuid 变量中。这样可以确保每个会话对象都有一个唯一的标识符，便于在程序中对不同会话进行区分和管理。<br>
+1.通过智能指针管理session类:<br>
+(1)Session类继承自模板类std::enable_shared_from_this,std::enable_shared_from_this的作用是允许一个对象（通常是一个使用std::shared_ptr管理的对象）创建一个指向自身的std::shared_ptr，以防止出现悬空指针问题。<br>
 (2)Session类内的成员：1.有参构造，参数包括：上下文ioc,server指针*server,通过初始化列表的方式初始化上下文和server, boost::uuids::uuid a_uuid = boost::uuids::random_generator()();这是一个函数，用于生成一个随机的 UUID 生成器对象。 _uuid = boost::uuids::to_string(a_uuid);将uuid储存到_uuid成员变量中。<br>
 2.&Socket();用于获取当前Socket<br>
 3.void Start();监听对客户端的读和写<br>
 4.& GetUuid();返回当前对象的 _uuid 成员变量的引用，用于获取生成的 UUID 字符串。<br>
 5.回调读函数和回调写函数，两个函数在先前异步服务器中的回调函数的基础上增加了Session的智能指针<br>
-6.套接字，数据数组，server指针，uuid四个成员·1变量成员变量<br>
+6.套接字，数据数组，server指针，uuid四个成员变量,server指针的作用是调用sever的成员函数，在此项目中只调用了ClearSession一个函数用于清除会话<br>
+(3)创建Start函数，首先需要把data数组清空,用memset方法将数组内元素全置为0，调用异步写函数async_read_some,此函数与read函数不同，为socket的成员函数，因此被socket的对象调用,读到的数据会给到buffer被data数组接收,完成异步读操作后会调用读回调函数<br>
+(4)读回调handle_read,首先会打印接从客户端收到的数据（此前已通过异步读函数给到data，只需打印data就行），接着把data数组清空，再次调用异步读函数，进行下一轮监听连接，并在同时调用异步写函数，给客户端回传信息，再调用回调写函数。此回调函数中通过_self_shared来指向自身对象，没有使用this指针，避免了指针悬空问题。<br>
+(5)写回调函数hand_write,首先会把data清空，然后调用异步读函数，与读回调相同，都用到了_slef_shared指向自身
+```
+//Session类
+class Session :public std::enable_shared_from_this<Session>//模板类
+{
+public:
+    Session(boost::asio::io_context& ioc, Server* server) :_socket(ioc), _server(server) {//socket绑定上下文ioc
+        //这是一个函数，用于生成一个随机的 UUID 生成器对象。
+        boost::uuids::uuid a_uuid = boost::uuids::random_generator()();
+        _uuid = boost::uuids::to_string(a_uuid);
+    }
+    tcp::socket& Socket() {//获取当前socket变量
+        return _socket;
+    }
+    void Start();//监听对客户端的读和写
+    std::string& GetUuid();
+    ~Session() {
+        std::cout << "session destruct delete this" << this << std::endl;
+    }
+private:
+    void handle_read(const boost::system::error_code& error, size_t bytes_transfered, std::shared_ptr<Session>_self_shared);//读的回调函数
+    void handle_write(const boost::system::error_code& error, std::shared_ptr<Session>_self_shared);//写的回调函数
+    tcp::socket _socket;
+    enum { max_length = 1024 };
+    char _data[max_length];//数组接收数据
+    Server* _server;
+    std::string _uuid;
+};
+```
+```
+//Session成员函数的实现
+void Session::Start() {
+    memset(_data, 0, max_length);//保证存储归零
+    _socket.async_read_some(boost::asio::buffer(_data, max_length),//当读到数据时，socket的tcp缓冲区不为空，触发读事件
+        std::bind(&Session::handle_read, this, placeholders::_1,//this指向类
+            placeholders::_2, shared_from_this())
+    );
+}
+std::string& Session::GetUuid()
+{
+    return _uuid;
+    // TODO: 在此处插入 return 语句
+}
+void Session::handle_read(const boost::system::error_code& error, size_t bytes_transfered, std::shared_ptr<Session>_self_shared) {
 
+    if (!error) {
+        cout << "server receive data is " << _data << endl;//打印收到的数据
+        memset(_data, 0, max_length);
+        _socket.async_read_some(boost::asio::buffer(_data, max_length), std::bind(&Session::handle_read,
+            this, placeholders::_1, placeholders::_2, _self_shared));
+        boost::asio::async_write(_socket, boost::asio::buffer("hello client", bytes_transfered),
+            std::bind(&Session::handle_write, this, placeholders::_1, _self_shared));//bind可将类的成员函数转成一个普通函数，但因为普通函数要有一个参数所以要有一个占位符
+    }
+    else {
+        cout << "read error" << endl;
+        //delete this;//读出错，销毁Session.断开连接，有隐患
+        _server->ClearSession(_uuid);
+    }
+}
+
+void Session::handle_write(const boost::system::error_code& error, std::shared_ptr<Session>_self_shared) {
+    if (!error) {
+        memset(_data, 0, max_length);
+        _socket.async_read_some(boost::asio::buffer(_data, max_length), std::bind(&Session::handle_read,
+            this, placeholders::_1, placeholders::_2, _self_shared));
+    }
+    else {
+        cout << "write error" << error.value() << endl;
+        /*delete this;*/
+        _server->ClearSession(_uuid);
+    }
+}
+
+```
+
+2.Server类:<br>
+构造函数：接受一个 boost::asio::io_context 对象和一个 short 类型的端口号作为参数，用于初始化成员变量 _ioc（一个 io_context 对象）和 _acceptor（一个 TCP acceptor 对象）。<br>
+ClearSession 方法：用于清除指定 UUID 对应的会话，可能在需要断开连接或释放会话资源时调用。<br>
+start_accept 方法：未提供具体实现，可能用于启动一个新的描述符或准备接收新的连接。<br>
+handle_accept 方法：处理有新连接时的回调函数，接受一个 std::shared_ptr<Session> 对象和一个表示是否有错误的 boost::system::error_code。<br>
+私有成员变量：<br>
+_ioc：一个 io_context 对象的引用，用于管理网络操作的上下文。<br>
+_acceptor：一个 TCP acceptor 对象，用于接受新的连接。<br>
+_sessions：一个存储会话对象的 std::map，以 UUID 字符串作为键，std::shared_ptr<Session> 对象作为值，用智能指针管理会话对象。<br>
+(1)Sever有参构造，在控制台打印服务器端口号,启动Start函数,同时在初始化列表里初始化ioc和acceptor<br>
+(2)void Server::ClearSession(std::string uuid):通过调用 erase 方法，该 UUID 对应的会话对象从 _sessions 容器中移除，实现了清除会话对象的功能。<br>
+(3)
