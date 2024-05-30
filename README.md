@@ -799,5 +799,133 @@ shared_ptr 是C++11提供的一种智能指针类，可以在任何地方都不�
 2、当任何 shared_ptr 对象超出作用域时，则在其析构函数中，它将关联指针的引用计数减1。如果引用计数变为0，则表示没有其他 shared_ptr 对象与此内存关联，在这种情况下，它使用delete函数删除该内存。<br>
 shared_ptr是以类模板的方式实现的，shared_ptr（其中 T 表示指针指向的具体数据类型）的定义位于头文件。<br>
 # 5.29
+#### 异步读写服务器的建立
+1.创建一个session类，用来管理用户连接
+2.添加session类的成员，包括:读回调函数，写回调函数，socket套接字，最大接收长度1024，接收数组data，有参构造函数，参数为上下文ioc并在构造函数的初始化列表里对socket进行了初始化，成员函数&socket()用来访问socket对象
+3.创建Start()函数，来监听客户端发送的数据，通过调用异步读函数来监听对端发来的消息--异步读函数的参数包括：1.要赋值的参数buffer 2.绑定的回调函数：读回调函数（bind绑定时不需要知道其参数类型，只要有this指针指向，和占位符（占位符的数量与其参数数量相同））（回调函数会在读操作完成之后进行回调）；
+4.创建读回调函数handle_read(),此函数将会在读操作完成后进行调用，调用首先会判断读操作是否成功，成功则在控制台打印收到的信息，并调用异步写函数，将data的值写入buffer,传给socket发送给客户端。完成异步写操作后，会调用回调写函数
+5.创建回调写函数handle_write(),此函数首先会将data数组清空，用于下一次从客户端接收数据，并调用异步读函数，继续从客户端监听连接，并将传来的socket写入data数组，完成异步写函数后会调用回调写函数；
+6.创建Server类用来监听客户端的连接，其成员函数包括：1.有参构造，参数为上下文和端口，用来建立结点和初始化socket，2.开始接收函数start_aceept();3.回调接收函数handle_accept(),参数有session,常引用错误码，3.上下文ioc,4.传入连接对象acceptor
+7.创建start_accept()开始接收连接函数，1.首先创建一个session对象，并用ioc初始化，ioc会在session的有参构造初始化列表里初始化套接字socket;2.调用异步接收函数，通过socket()函数来返回一个新的socket对象来复制客户端传来的socket,之后再调用回调接收函数
+8.回调接收函数handle_accept().此函数会通过satrt_accept()传来的new_session对象，调用其satrt函数，开始异步读写操作，并同时开始监听下一轮客户端发来的连接。
+```
+//类的定义
+#pragma once
+#include<boost/asio.hpp>
+#include<iostream>
+using namespace boost::asio::ip;
+class Session
+{
+public:
+    Session(boost::asio::io_context& ioc) :_socket(ioc) {
+    }
+    tcp::socket& Socket() {
+        return _socket;
+    }
+    void Start();
+private:
+    //读的回调函数 参数包括错误码和正在发送的长度
+    void handle_read(const boost::system::error_code& error, size_t bytes_transfered);
+    //写的回调函数
+    void handle_write(const boost::system::error_code& error);
+    //套接字
+    tcp::socket _socket;
+    //接收数据的最大长度1024，用了枚举常量定义，意味着不可改变其值
+    enum { max_length = 1024 };
+    //数据数组
+    char _data[max_length];
+
+};
+
+class Server {
+public:
+    Server(boost::asio::io_context& ioc, short port);
+private:
+    void start_accept();
+    void handle_accept(Session* new_session, const boost::system::error_code& error);
+    boost::asio::io_context& _ioc;
+    tcp::acceptor _acceptor;
+};
+```
+```
+//函数体的实现
+#include "Session.h"
+#include<boost/asio.hpp>
+using namespace boost::asio::ip;
+using namespace std;
+void Session::Start() {
+    memset(_data, 0, max_length);
+    _socket.async_read_some(boost::asio::buffer(_data, max_length),
+        std::bind(&Session::handle_read, this, placeholders::_1,
+            placeholders::_2)
+    );
+}
+
+void Session::handle_read(const boost::system::error_code& error, size_t bytes_transfered) {
+
+    if (!error) {
+        cout << "server receive data is " << _data << endl;
+        boost::asio::async_write(_socket, boost::asio::buffer(_data, bytes_transfered),
+            std::bind(&Session::handle_write, this, placeholders::_1));
+    }
+    else {
+        delete this;
+    }
+}
+void Session::handle_write(const boost::system::error_code& error) {
+    if (!error) {
+        memset(_data, 0, max_length);
+        _socket.async_read_some(boost::asio::buffer(_data, max_length), std::bind(&Session::handle_read,
+            this, placeholders::_1, placeholders::_2));
+    }
+    else {
+        delete this;
+    }
+}
+
+Server::Server(boost::asio::io_context& ioc, short port) :_ioc(ioc),
+_acceptor(ioc, tcp::endpoint(tcp::v4(), port)) {
+    start_accept();
+}
+
+void Server::start_accept() {
+    Session* new_session = new Session(_ioc);
+    _acceptor.async_accept(new_session->Socket(),
+        std::bind(&Server::handle_accept, this, new_session, placeholders::_1));
+}
+void Server::handle_accept(Session* new_session, const boost::system::error_code& error) {
+    if (!error) {
+        new_session->Start();
+    }
+    else {
+        delete new_session;
+    }
+
+    start_accept();
+}
+```
+```
+//主函数
+
+#include <iostream>
+#include"Session.h"
+
+int main()
+{
+    try {
+        boost::asio::io_context ioc;
+        using namespace std;
+        Server s(ioc, 10086);
+        ioc.run();
+    }
+    catch (std::exception& e) {
+        std::cerr << "Exception:" << e.what() << "\n";
+
+    }
+    return 0;
+}
+
+```
 
 # 5.30
+#### 模拟伪闭包实现连接
