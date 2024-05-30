@@ -238,6 +238,9 @@ std::bind 是一个函数模板，用于创建一个函数对象，该函数对�
 
 3）write、read----建立连接后，就可发收消息了。 图示如下<br>
 ![](https://github.com/tormorin/tormorin/blob/main/网络编程/1.jpg)
+#### 网络编程预备知识
+tcp::socket：这是一个类，用于表示 TCP 网络套接字。它提供了开启连接、发送数据、接收数据等功能。<br>
+io_context 是用于处理异步操作的事件循环的核心组件，在执行网络操作时，所有的异步操作都将通过它来调度和执行。<br>
 #### 客户端和服务器连接的流程
 ##### 1.终端节点的创建
 所谓终端节点就是用来通信的端对端的节点，可以通过ip地址和端口构造，其的节点可以连接这个终端节点做通信. 如果我们是客户端，我们可以通过对端的ip和端口构造一个endpoint，用这个endpoint和其通信。<br>
@@ -624,24 +627,63 @@ while (cin >> grade)
 }
 ```
 ## 网络编程
-### 同步读写端口
-#### 同步写write_some
-boost::asio提供了几种同步写的api，write_some可以每次向指定的空间写入固定的字节数，如果写缓冲区满了，就只写一部分，返回写入的字节数。
+### 同步读写
+#### 同步读写的客户端建立
+1.创建一个上下文ioc，用于socket的初始化<br>
+2.构造一个endpoint端点，用于连接对端服务器<br>
+3.创建一个socket对象，并用ioc对它进行初始化<br>
+4.创建错误码，发生错误时报错，打印错误信息<br>
+5.判断是否存在错误，报错打印信息<br>
+6.创建一个数组用于发送信息<br>
+7.通过写函数和buffer将信息写给socket并发送给服务器<br>
+8.创建一个数组用于接收服务器发来的信息<br>
+9.通过读函数，将服务器传来的socket的数据写入buffer存到数组里，并打印<br>
 ```
-void write_to_socket(asio::ip::tcp::socket& sock)//通过socket进行写操作
-{
-	std::string buf = "Hello World";
-	std::size_t  total_bytes_written = 0;//无符号整数，用来记录已经写入的字节数
-	//循环发送
-	//write_som 返回每次写入的字节数
-	while (total_bytes_written != buf.length())
-	{
-		//buf.c_str()+total_bytes_written为第一个参数：内存首地址
-		//buf.length()-total_bytes_written为第二个参数：还没有发送的长度
-		total_bytes_written += sock.write_some(asio::buffer(buf.c_str() + total_bytes_written, buf.length() - total_bytes_written));
-	}
-}
+//在main函数里实现
+ //用try catch 方法来接收异常
+ try {
+     //1.创建上下文服务
+     boost::asio::io_context ioc;
+     //2.构建endpoint 用于通信的端点，连接对端ip和端口
+     tcp::endpoint remote_ep(address::from_string("127.0.0.1"), 10086);
+     //3.创建一个socket对象 并绑定上下文，绑定上下文后
+     tcp::socket sock(ioc);
+     //4.创建一个错误码，用来表示找不到主机的错误情况
+     boost::system::error_code error = boost::asio::error::host_not_found;
+     //5.调用sock的connect函数，同步连接到remote_ep指定的远程端点，如果连接出现错误，就用error来反映，没有错就连接成功
+     sock.connect(remote_ep, error);
+     //6.检查错误原因
+     if (error)
+     {//error.message() 会输出错误描述，error.value() 会提供错误代码。
+         cout << "connect failed, code is " << error.value() << " error msg is " << error.message();
+     }
+     //提醒输入消息
+     std::cout << "Enter message: ";
+     //7.定义一个request数组用于存储输入的消息
+     char request[MAX_LENGTH];
+     //8.从输入中读取数据存入request数组，最大存储长度为1024;
+     std::cin.getline(request, MAX_LENGTH);
+     //9.向服务发送的数据长度就为request数组长度
+     size_t request_length = strlen(request);
+     //10.调用write函数 并将数组的内容写入buffer  并通过write函数将buffer内容写入sock
+     boost::asio::write(sock, boost::asio::buffer(request, request_length));
+     //11.定义个reply数组用来接收服务器回传的消息，最大存储长度为1024
+     char reply[MAX_LENGTH];
+     //read函数实际返回的是读到的长度，该函数会从sock读取数据写入buffer
+     size_t reply_length = boost::asio::read(sock, boost::asio::buffer(reply, request_length));
+     //提示rply的信息
+     std::cout << "Reply is: ";
+     //将reply数组内容打印出来
+     std::cout.write(reply, reply_length);
+     std::cout << "\n";
+ }
+ //有异常信息会被catch抓获并打印异常信息
+ catch (std::exception& e) {
+     std::cerr << "Exception: " << e.what() << endl;
+ }
 ```
+#### 同步读写的服务器建立
+
 ## C++基础
 ### shard_ptr智能指针
 智能指针和普通指针用法相似，智能指针的本质是一个模板类，对普通指针进行了封装，通过在构造函数中初始化分配内存，在析构函数中释放内存，达到自己管理内存，不需要手动管理内存的效果，避免了忘记释放内存而导致的内存泄露。
