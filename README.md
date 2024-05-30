@@ -1098,3 +1098,5 @@ void Server::handle_accept(shared_ptr<Session> new_session, const boost::system:
     start_accept();//处理完接收新的连接
 }
 ```
+服务器伪闭包流程图：<br>
+![](https://github.com/tormorin/tormorin/blob/main/网络编程/服务器伪闭包连接流程图.png)
