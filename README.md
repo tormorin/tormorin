@@ -16,6 +16,7 @@ You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/co
 - [5.27](#527)
 - [5.28](#528)
 - [5.29](#529)
+- [5.30](#530)
 
 # 日志
 # 5.25 
