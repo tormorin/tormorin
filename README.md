@@ -936,8 +936,7 @@ int main()
 在异步读写中，程序发出IO请求后会继续执行后续操作，而不必等待IO操作完成。
 当IO操作完成后，程序会得到通知，然后可以处理已完成的IO操作。<br>
 #### 模拟伪闭包实现连接
-1.通过智能指针管理session类:
-(1)Session类继承自模板类std::enable_shared_from_this,std::enable_shared_from_this的作用是允许一个对象（通常是一个使用std::shared_ptr管理的对象）创建一个指向自身的std::shared_ptr，以防止出现悬空指针问题。
+##### 提前需要了解的知识
 ##### enable_shared_from_this:<br>
 当使用std::shared_ptr管理一个对象时，可能会遇到一种情况：希望在对象的某些成员函数中能够安全地获取指向自身的std::shared_ptr，这样可以确保在对象处于活动状态时保持共享所有权，避免对象被提前释放而导致悬空指针问题。
 在一个类中继承 std::enable_shared_from_this，通过调用 shared_from_this() 成员函数可以获得一个指向自身的 std::shared_ptr，而不是通过普通的 this 指针来获取智能指针。
@@ -949,3 +948,18 @@ int main()
 尽量使用智能指针（如std::shared_ptr、std::unique_ptr）来管理内存，因为智能指针会在对象不再需要时自动释放内存，避免手动管理内存带来的悬空指针问题。<br>
 避免在对象生命周期结束后仍然持有该对象的指针，确保在不再需要对象时及时释放或重置指针。<br>
 通过良好的内存管理和指针处理习惯，可以有效预防悬空指针问题的发生，提高程序的稳定性和可靠性。
+##### UUID:
+UUID（Universally Unique Identifier，通用唯一识别码）是一种用于标识信息或对象在系统中的唯一性的标识符。UUID 是一个128位的二进制数，通常以十六进制字符串的形式呈现。
+通常情况下，UUID 主要用于以下场景：<br>
+在数据库中作为主键或唯一标识符，确保数据在分布式系统中的唯一性。<br>
+在网络通信中用作会话标识符或消息标识符，辅助实现分布式系统中的唯一认证或消息跟踪。<br>
+在软件开发中用于生成临时文件名、临时变量名或其他需要唯一标识的场景。<br>
+1.通过智能指针管理session类:
+(1)Session类继承自模板类std::enable_shared_from_this,std::enable_shared_from_this的作用是允许一个对象（通常是一个使用std::shared_ptr管理的对象）创建一个指向自身的std::shared_ptr，以防止出现悬空指针问题。
+(2)Session类内的成员：1.有参构造，参数包括：上下文ioc,server指针*server,通过初始化列表的方式初始化上下文和server, boost::uuids::uuid a_uuid = boost::uuids::random_generator()();这是一个函数，用于生成一个随机的 UUID 生成器对象。 _uuid = boost::uuids::to_string(a_uuid);将uuid储存到_uuid成员变量中。<br>
+2.&Socket();用于获取当前Socket<br>
+3.void Start();监听对客户端的读和写<br>
+4.& GetUuid();返回当前对象的 _uuid 成员变量的引用，用于获取生成的 UUID 字符串。<br>
+5.回调读函数和回调写函数，两个函数在先前异步服务器中的回调函数的基础上增加了Session的智能指针<br>
+6.套接字，数据数组，server指针，uuid四个成员·1变量成员变量<br>
+
