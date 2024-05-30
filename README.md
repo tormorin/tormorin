@@ -926,7 +926,8 @@ int main()
 }
 
 ```
-
+#### 隐患
+该demo示例为仿照asio官网编写的，其中存在隐患，就是当服务器即将发送数据前(调用async_write前)，此刻客户端中断，服务器此时调用async_write会触发发送回调函数，判断ec为非0进而执行delete this逻辑回收session。但要注意的是客户端关闭后，在tcp层面会触发读就绪事件，服务器会触发读事件回调函数。在读事件回调函数中判断错误码ec为非0，进而再次执行delete操作，从而造成二次析构，这是极度危险的。
 # 5.30
 #### 同步读写和异步读写的区别
 同步读写：
@@ -1054,3 +1055,46 @@ _sessions：一个存储会话对象的 std::map，以 UUID 字符串作为键�
 (2)void Server::ClearSession(std::string uuid):通过调用 erase 方法，该 UUID 对应的会话对象从 _sessions 容器中移除，实现了清除会话对象的功能。<br>
 (3)void Server::start_accept(),首先创建一个Session，Session通过智能指针的方式创建，一个参数为ioc用于初始化,一个参数为this指向当前对象；再调用acceptor监听客户端连接，当前用socket接收客户端发来的socket,再调用回调函数handle_acceptor
 (4)void Server::handle_accept(shared_ptr<Session> new_session, const boost::system::error_code& error),处理完连接后调用，此函数会新创建一个Session的socket来接收客户端连接,并通过insert方式插入_session队列，每个session给一个唯一的uuid用于消除,并开始接收新的连接。
+```
+class Server {
+public:
+    Server(boost::asio::io_context& ioc, short port);
+    void ClearSession(std::string uuid);
+private:
+    void start_accept();//启动一个描述符
+    void handle_accept(std::shared_ptr<Session> new_session, const boost::system::error_code& error);//有连接时触发回调函数
+    boost::asio::io_context& _ioc;//io_context不允许被复制和拷贝构造
+    tcp::acceptor _acceptor;
+    std::map<std::string, std::shared_ptr<Session>> _sessions;//用智能指针管理session
+};
+```
+```
+Server::Server(boost::asio::io_context& ioc, short port) :_ioc(ioc), _acceptor(ioc, tcp::endpoint(tcp::v4(), port)) {//构造函数，初始化列表赋值，acceptor接收连接的描述符，v4是匹配本机的地址，port是端口
+    cout << "Server start success,on port:" << port << endl;
+    start_accept();//捕获
+}
+
+void Server::ClearSession(std::string uuid)
+{
+    _sessions.erase(uuid);
+}
+
+void Server::start_accept() {
+    shared_ptr<Session>new_session = make_shared<Session>(_ioc, this);//_ioc用于初始化，this指向当前对象
+    _acceptor.async_accept(new_session->Socket(),//async_accept的参数,1.socket--处理对端信息，2.回调函数
+        std::bind(&Server::handle_accept, this, new_session, placeholders::_1));//new_session为新的连接 ，当有新的连接时new_session会绑定到回调函数里，占位符为错误码
+}
+
+void Server::handle_accept(shared_ptr<Session> new_session, const boost::system::error_code& error) {//处理连接的回调函数
+    if (!error) {//成功
+        new_session->Start();//调用Start用来接收客户端的收发信息
+        _sessions.insert(make_pair(new_session->GetUuid(), new_session));
+    }
+    else {//失败
+        // delete new_session;
+
+    }
+
+    start_accept();//处理完接收新的连接
+}
+```
