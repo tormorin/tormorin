@@ -1052,4 +1052,5 @@ _acceptor：一个 TCP acceptor 对象，用于接受新的连接。<br>
 _sessions：一个存储会话对象的 std::map，以 UUID 字符串作为键，std::shared_ptr<Session> 对象作为值，用智能指针管理会话对象。<br>
 (1)Sever有参构造，在控制台打印服务器端口号,启动Start函数,同时在初始化列表里初始化ioc和acceptor<br>
 (2)void Server::ClearSession(std::string uuid):通过调用 erase 方法，该 UUID 对应的会话对象从 _sessions 容器中移除，实现了清除会话对象的功能。<br>
-(3)
+(3)void Server::start_accept(),首先创建一个Session，Session通过智能指针的方式创建，一个参数为ioc用于初始化,一个参数为this指向当前对象；再调用acceptor监听客户端连接，当前用socket接收客户端发来的socket,再调用回调函数handle_acceptor
+(4)void Server::handle_accept(shared_ptr<Session> new_session, const boost::system::error_code& error),处理完连接后调用，此函数会新创建一个Session的socket来接收客户端连接,并通过insert方式插入_session队列，每个session给一个唯一的uuid用于消除,并开始接收新的连接。
