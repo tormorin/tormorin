@@ -1117,3 +1117,14 @@ std::mutex 是一个互斥量，用于保护共享数据，防止多个线程同
 std::lock_guard<br>
 std::lock_guard 是一个作用域锁，它在构造时自动锁定给定的互斥量，并在析构时自动释放互斥量。std::lock_guard 被设计用来提供一种便捷的RAII（资源获取即初始化）风格的互斥管理方式，确保即使发生异常也能正确释放互斥量。<br>
 使用 std::lock_guard 可以避免忘记解锁互斥量的问题，它保证了即使在抛出异常的情况下，离开作用域时互斥量也会被自动解锁。<br>
+#### 在异步服务器基础上做出的修改
+Session类改名为CSession类，并在CSession类中添加成员
+send函数:用于向客户端发送数据<br>
+_send_queue队列：用于发送数据<br>
+_send_lock互斥量：用于保护线程，防止多线程访问同一数据资源<br>
+```
+    void Send(char* msg, int max_length);
+    std::queue<shared_ptr<MsgNode> > _send_que;//发送队列
+    std::mutex _send_lock;//锁
+```
+具体实现:<br>
