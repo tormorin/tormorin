@@ -17,6 +17,7 @@ You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/co
 - [5.28](#528)
 - [5.29](#529)
 - [5.30](#530)
+- [5.31](#531)
 
 # 日志
 # 5.25 
@@ -1100,3 +1101,19 @@ void Server::handle_accept(shared_ptr<Session> new_session, const boost::system:
 ```
 服务器伪闭包流程图：<br>
 ![](https://github.com/tormorin/tormorin/blob/main/网络编程/服务器伪闭包连接流程.png)
+#### 关于代码的说明--Session对象通过智能指针延长生命周期
+此代码使用了指针指针shared_ptr来管理Session类，并让Session继承了enable_shared_from_this,允许Session的对象用shared_from_this()函数创建指向自身的智能指针shard_ptr，这样可以确保在异步操作进行期间，Session 对象保持活动状态，不会因为原来的 shared_ptr 被销毁而被释放；例如，在 Start 和 handle_read 成员函数中，shared_from_this() 被用来传递给异步操作的回调，这确保了调用回调时 Session 对象仍然有效。
+# 5.31
+#### 服务器增加发送队列
+##### 提前需要了解的知识
+互斥锁 _send_lock<br>
+std::mutex 类型的 _send_lock 用于保护 _send_que，确保在并发环境中安全地访问队列。这防止了多个线程同时修改队列（如添加或移除消息），这可能导致数据损坏或竞态条件。<br>
+逻辑线程<br>
+逻辑线程通常指的是在软件设计中，用于处理特定业务逻辑的线程。这些逻辑可能涵盖应用的核心功能，如数据处理、数学计算或复杂的决策制定过程。逻辑线程的关键是它们的行为是围绕软件的业务需求来设计的。<br>
+逻辑线程通常不直接与系统资源进行交互，它们更多的是在内存中处理数据和算法，而非进行I/O操作。在很多情况下，逻辑线程可能被设计为状态无关的，使得它们可以并行处理数据，从而提高效率和响应速度。<br>
+在 C++11 中引入的 std::mutex 和 std::lock_guard 是现代 C++ 中管理并发的基本工具。这两个特性为多线程编程提供了安全的互斥机制，使得使用多线程变得更安全、更便捷。<br>
+std::mutex<br>
+std::mutex 是一个互斥量，用于保护共享数据，防止多个线程同时访问同一数据资源。当一个线程想要访问受保护的数据时，它必须先锁定（lock）互斥量，访问数据后再解锁（unlock）互斥量。如果互斥量已被另一线程锁定，其他线程将会等待（block）直到互斥量被解锁。<br>
+std::lock_guard<br>
+std::lock_guard 是一个作用域锁，它在构造时自动锁定给定的互斥量，并在析构时自动释放互斥量。std::lock_guard 被设计用来提供一种便捷的RAII（资源获取即初始化）风格的互斥管理方式，确保即使发生异常也能正确释放互斥量。<br>
+使用 std::lock_guard 可以避免忘记解锁互斥量的问题，它保证了即使在抛出异常的情况下，离开作用域时互斥量也会被自动解锁。<br>
