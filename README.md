@@ -1154,7 +1154,12 @@ private:
 	void HandleWrite(const boost::system::error_code &error,shared_ptr<CSession> _self_shared);
 };
 ```
-Server类改名为CServer
+Server类改名为CServer<br>
+构造函数接受了一个io_context和端口号，并初始化了成员变量。<br>
+ClearSession函数会根据给定的uuid清除相应的会话。<br>
+Server类成员有一个io_context的引用，一个端口号，一个tcp::acceptor用于监听客户端连接，以及一个用于存储会话的map。<br>
+StartAccept函数用于启动异步接受连接操作。<br>
+HandleAccept函数用于处理连接请求，它接受一个指向CSession对象的智能指针和一个错误码作为参数。<br>
 ```
 class CServer
 {
@@ -1173,7 +1178,30 @@ private:
 };
 
 ```
-并在CSession类中添加成员
+设计MsgNode类
+MsgNode主要用来储存数据<br>
+构造函数接受消息数据和最大长度，并复制消息数据到一个堆分配的内存空间中。<br>
+析构函数则释放了为消息数据分配的内存。<br>
+```
+class MsgNode
+{
+	friend class CSession;
+public:
+	MsgNode(char* msg, int max_len) {
+		_data = new char[max_len];
+		memcpy(_data, msg, max_len);
+	}
+	~MsgNode(){
+		delete[] _data;
+	}
+private:
+	int _cur_len;//当前已经处理好的数据长度
+	int _max_len;//数据总长度
+	char* _data;//存储数据的数组
+};
+
+```
+在CSession类中添加成员
 send函数:用于向客户端发送数据<br>
 _send_queue队列：用于发送数据<br>
 _send_lock互斥量：用于保护线程，防止多线程访问同一数据资源<br>
@@ -1182,6 +1210,94 @@ _send_lock互斥量：用于保护线程，防止多线程访问同一数据资�
     std::queue<shared_ptr<MsgNode> > _send_que;//发送队列
     std::mutex _send_lock;//锁
 ```
+函数体的具体实现:<br>
+CSession的函数体的具体实现:
+1.satrt()函数：首先将数组内元素清空（每次接收一个新连接时要清空数组），在调用socket的async_read_some()函数实现异步读，完成异步读之后，调用绑定的回调函数HandleRead();
+```
+void CSession::Start()
+{
+	//先将data数组内的元素清空
+	memset(_data, 0, max_length);
+	_socket.async_read_some(boost::asio::buffer(_data, max_length),
+		std::bind(&CSession::HandleRead, this, placeholders::_1, placeholders::_2, shared_from_this()));
+}
+```
+2.HandleRead()函数:
+此函数在异步读函数后调用，首先使用了加锁操作，确保队列操作的线程安全；将队首元素出队:
+```
+void CSession::HandleRead(const boost::system::error_code& error, size_t bytes_transferred, shared_ptr<CSession> _self_shared)
+{
+	if (!error)
+	{
+		//上锁,确保队列中的操作是线程安全的
+		std::lock_guard<std::mutex>lock(_send_lock);
+		//将队首元素出队
+		_send_que.pop();
+		if (!_send_que.empty())//如果队列元素不为空，说明还有数据未发送完
+		{
+			//将队首元素给到msgnode
+			auto& msgnode = _send_que.front();
+			//异步写函数
+			boost::asio::async_write(_socket, boost::asio::buffer(msgnode->_data, msgnode->_max_len),
+				//回调写函数
+				std::bind(&CSession::HandleWrite, this, std::placeholders::_1, _self_shared));
+		}
+	}
+	else {
+		std::cout << "handle read failed, error is " << error.what() << endl;
+		_server->ClearSession(_uuid);
+	}
+}
+```
+3.send()函数
+```
+void CSession::Send(char* msg, int max_length)
+{
+	//定义一个布尔变量判断是否为发送状态
+	bool pending = false;
+	//上锁，确保队列操作的线程安全
+	std::lock_guard<std::mutex> lock(_send_lock);
+	//如果发送队列里有元素，说明正在发送，将pending置为true
+	if (_send_que.size() > 0) {
+		pending = true;
+	}
+	//将收到的MsgNode放入发送队列
+	_send_que.push(make_shared<MsgNode>(msg, max_length));
+	if (pending) {//判断是否正在发送；如果正在发送则返回
+		return;
+	}
+	//如果此时没有发送，则将MsgNode发送给客户端，并调用回调写函数
+	boost::asio::async_write(_socket, boost::asio::buffer(msg, max_length),
+		std::bind(&CSession::HandleWrite, this, std::placeholders::_1, shared_from_this()));
 
-具体实现:<br>
+}
+```
+HandleWrite()函数:
+```
+void CSession::HandleWrite(const boost::system::error_code& error, shared_ptr<CSession> _self_shared)
+{
+	if (!error)//如果没有错误
+	{
+		//上锁，保证队列操作的线程安全
+		std::lock_guard<std::mutex>lock(_send_lock);
+		//将队首元素出队
+		_send_que.pop();
+		//判断队列是否为空，不为空说明还存在要发送的元素
+		if (!_send_que.empty()) {
+			//将队首元素给到msgnode
+			auto& msgnode = _send_que.front();
+			//通过异步写函数发送给客户端
+			boost::asio::async_write(_socket, boost::asio::buffer(msgnode->_data, msgnode->_max_len),
+				//调用回调写函数
+				std::bind(&CSession::HandleWrite, this, std::placeholders::_1, _self_shared));
+		}
+	}
+	else {
+		std::cout << "handle write failed, error is " << error.what() << endl;
+		_server->ClearSession(_uuid);
+	}
+	
+}
+```
+4.
 # 6.1
