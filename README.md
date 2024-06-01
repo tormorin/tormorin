@@ -18,6 +18,7 @@ You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/co
 - [5.29](#529)
 - [5.30](#530)
 - [5.31](#531)
+- [6.1](#61)
 
 # 日志
 # 5.25 
@@ -1118,7 +1119,61 @@ std::lock_guard<br>
 std::lock_guard 是一个作用域锁，它在构造时自动锁定给定的互斥量，并在析构时自动释放互斥量。std::lock_guard 被设计用来提供一种便捷的RAII（资源获取即初始化）风格的互斥管理方式，确保即使发生异常也能正确释放互斥量。<br>
 使用 std::lock_guard 可以避免忘记解锁互斥量的问题，它保证了即使在抛出异常的情况下，离开作用域时互斥量也会被自动解锁。<br>
 #### 在异步服务器基础上做出的修改
-Session类改名为CSession类，并在CSession类中添加成员
+Session类改名为CSession类:CSession主要作用是对客户端传来的socket进行异步读写<br>
+boost::asio::ip::tcp::socket。这意味着每个CSession对象都拥有一个TCP socket，用来与客户端进行通信。<br>
+通过在构造函数中初始化_socket，以及另外定义了一个名为Socket的成员函数，您可以通过CSession对象访问所持有的socket。这种设计实际上将socket封装在了会话类中，使得对底层socket的操作可以更好地与会话逻辑的其他部分分离开来。<br>
+在这个的场景中，CSession代表了一个与客户端建立的会话，而socket则是用于实际数据传输的通道。<br>
+这种设计使得会话类可以独立管理与客户端的通信细节，而不会暴露底层socket的细节给外部代码。<br>
+```
+class CSession :public std::enable_shared_from_this<CSession>//允许对象创建指向自身的智能指针
+{
+public:
+	//构造函数 初始化socket和server指针，并给每个session生成一个唯一的uuid;将uuid转为string类型
+	CSession(boost::asio::io_context ioc, CServer* server):_socket(ioc),_server(server)
+	{
+		boost::uuids::uuid a_uuid = boost::uuids::random_generator()();//生成唯一的uuid
+		_uuid = boost::uuids::to_string(a_uuid);//将uuid用字符串的形式储存
+	}
+	tcp::socket& Socket()//定义一个Socket函数，用于返回socket
+	{
+		return _socket;
+	}
+	//用于启动异步读写
+	void Start();
+	//用于返回uuid
+	std::string& GetUuid();
+private:
+	tcp::socket _socket;//成员socket
+	CServer *_server;//server指针，用于调用
+	std::string _uuid;//字符串形式的uuid
+	enum { max_length = 1024 };//枚举变量,不可变
+	char _data[max_length];//数据数组，用于接收客户端发来的数据
+	//读回调函数,第一个参数为错误码，第二个参数是已发送的长度，第三个参数是指向自身的智能指针
+	void HandleRead(const boost::system::error_code &error,size_t bytes_transferred,shared_ptr<CSession> _self_shared);
+	//写回调函数,第一个参数为错误码，第二个参数是指向自身的智能指针
+	void HandleWrite(const boost::system::error_code &error,shared_ptr<CSession> _self_shared);
+};
+```
+Server类改名为CServer
+```
+class CServer
+{
+public:
+	//构造函数
+	CServer(const boost::asio::io_context& io_contex, short _port);
+	void ClearSession(std::string);
+private:
+	boost::asio::io_context &io_context;//上下文
+	short _port;//端口号
+	tcp::acceptor _acceptor;//acceptor 用于监听客户端连接
+	//其中键是 std::string 类型，而值是指向 CSession 类型对象的智能指针（std::shared_ptr<CSession>）
+	std::map<std::string, shared_ptr<CSession>>_sessions;
+	void StartAccept();
+	void HandleAccept(shared_ptr<CSession>,const boost::system::error_code &error);
+};
+
+```
+并在CSession类中添加成员
 send函数:用于向客户端发送数据<br>
 _send_queue队列：用于发送数据<br>
 _send_lock互斥量：用于保护线程，防止多线程访问同一数据资源<br>
@@ -1127,4 +1182,6 @@ _send_lock互斥量：用于保护线程，防止多线程访问同一数据资�
     std::queue<shared_ptr<MsgNode> > _send_que;//发送队列
     std::mutex _send_lock;//锁
 ```
+
 具体实现:<br>
+# 6.1
