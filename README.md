@@ -1223,25 +1223,21 @@ void CSession::Start()
 }
 ```
 2.HandleRead()函数:
-此函数在异步读函数后调用，首先使用了加锁操作，确保队列操作的线程安全；将队首元素出队:
+此函数在异步读函数后调用，先将读到的消息在客户端打印，然后调用发送函数，之后清空data数组,用data数组接收消息
+此函数因为在异步读函数
 ```
 void CSession::HandleRead(const boost::system::error_code& error, size_t bytes_transferred, shared_ptr<CSession> _self_shared)
 {
-	if (!error)
-	{
-		//上锁,确保队列中的操作是线程安全的
-		std::lock_guard<std::mutex>lock(_send_lock);
-		//将队首元素出队
-		_send_que.pop();
-		if (!_send_que.empty())//如果队列元素不为空，说明还有数据未发送完
-		{
-			//将队首元素给到msgnode
-			auto& msgnode = _send_que.front();
-			//异步写函数
-			boost::asio::async_write(_socket, boost::asio::buffer(msgnode->_data, msgnode->_max_len),
-				//回调写函数
-				std::bind(&CSession::HandleWrite, this, std::placeholders::_1, _self_shared));
-		}
+	if (!error) {
+		//打印客户端发来的数据
+		cout << "read data is " << _data << endl;
+		//发送数据
+		Send(_data, bytes_transferred);
+		//清空data数组
+		memset(_data, 0, max_length);
+		//异步读函数---读完调用回调读函数
+		_socket.async_read_some(boost::asio::buffer(_data, max_length), std::bind(&CSession::HandleRead, this,
+			std::placeholders::_1, std::placeholders::_2, _self_shared));
 	}
 	else {
 		std::cout << "handle read failed, error is " << error.what() << endl;
@@ -1301,3 +1297,52 @@ void CSession::HandleWrite(const boost::system::error_code& error, shared_ptr<CS
 ```
 4.
 # 6.1
+### 类的使用与常用函数
+通过一个例子来介绍类与对象的使用
+```
+#include<iostream>
+#include<string>
+using namespace std;
+#ifndef __CLASS_H__
+#define __CLASS_H__
+class Sales_data
+{
+    friend  std::ostream& print(std::ostream&, const Sales_data&);
+    friend  std::istream& read(std::istream&, Sales_data&);
+public:
+    //通过default实现默认构造
+    // Sales_data() = default;
+    //显示实现默认构造
+    Sales_data() : bookNo(""), units_sold(0), revenue(0.0) {}
+    // copy构造，根据Sales_data类型对象构造一个新对象
+    Sales_data(const Sales_data& sa);
+    //返回图书号，即IBSN编号
+    std::string isbn() const { return bookNo; }
+    //获取平均单价
+    double avg_price() const;
+    //将一个Sales_data对象合并到当前类对象
+    Sales_data& combine(const Sales_data&);
+
+private:
+    //图书编号
+    std::string bookNo;
+    //销量
+    unsigned units_sold = 0;
+    //收入
+    double revenue = 0.0;
+};
+// Sales_data的非成员接口
+extern Sales_data add(const Sales_data&, const Sales_data&);
+extern  std::ostream& print(std::ostream&, const Sales_data&);
+extern std::istream& read(std::istream&, Sales_data&);
+extern void dealSales();
+#endif
+```
+上述代码构造了一个管理图书录入系统，用于统计销量和收入<br>
+类的公有成员:即public后的变量与函数<br>
+Sales_data() : bookNo(""), units_sold(0), revenue(0.0) {}：此函数为类的默认构造函数，也称为无参构造函数，‘:’后为构造函数的初始化列表，初始化成员变量，用于对象的初始化。<br>
+Sales_data(const Sales_data& sa)：此为拷贝构造函数，用于拷贝对象sa。<br>
+std::string isbn() const { return bookNo; }：此函数用于返回bookNo编号，即得到当前对象的bookNo,在函数定义末尾加const,意味着不能修改此函数所属的对象的成员变量，通常用于保护对象的成员变量不被修改，用于只读操作的函数。<br>
+double avg_price() const:此函数用于获取平均单价，可从下方函数实现可知此函数在销量不为0时返回平均单价，返回值为double类型。<br>
+Sales_data& combine(const Sales_data&)：从下方的函数实现可知，此函数在原有对象的成员变量基础上，加上了另一个成员即形参调用的成员的成员变量。<br>
+类的私有成员：定义了三个成员变量，可视为对象的属性，因为为私有成员，所以外部函数无法调用，友元函数可以调用。<br>
