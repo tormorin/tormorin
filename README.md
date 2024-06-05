@@ -19,7 +19,7 @@ You are my ![Visitor Count](https://profile-counter.glitch.me/wisdom-tormorin/co
 - [5.30](#530)
 - [5.31](#531)
 - [6.1](#61)
-
+- [6.5](#65)
 # 日志
 # 5.25 
 ### 更新QT5界面编程
@@ -1346,3 +1346,6 @@ std::string isbn() const { return bookNo; }：此函数用于返回bookNo编号�
 double avg_price() const:此函数用于获取平均单价，可从下方函数实现可知此函数在销量不为0时返回平均单价，返回值为double类型。<br>
 Sales_data& combine(const Sales_data&)：从下方的函数实现可知，此函数在原有对象的成员变量基础上，加上了另一个成员即形参调用的成员的成员变量。<br>
 类的私有成员：定义了三个成员变量，可视为对象的属性，因为为私有成员，所以外部函数无法调用，友元函数可以调用。<br>
+# 6.5
+## C++基础 
+
